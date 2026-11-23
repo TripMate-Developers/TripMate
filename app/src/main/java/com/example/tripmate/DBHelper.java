@@ -8,7 +8,7 @@ import android.database.sqlite.SQLiteOpenHelper;
 
 public class DBHelper extends SQLiteOpenHelper {
     public static final String DB_NAME = "tripmate.db";
-    public static final int DB_VERSION = 1;
+    public static final int DB_VERSION = 2;
 
     public DBHelper(Context c) {
         super(c, DB_NAME, null, DB_VERSION);
@@ -27,16 +27,20 @@ public class DBHelper extends SQLiteOpenHelper {
                 "trip_id INTEGER, title TEXT, amount REAL)");
         db.execSQL("CREATE TABLE reminders(id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                 "trip_id INTEGER, title TEXT, date TEXT, time TEXT)");
+        createSessionsTable(db);
+    }
+
+    private void createSessionsTable(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS sessions(id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "trip_id INTEGER, activity TEXT, seconds INTEGER, logged_at TEXT)");
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldV, int newV) {
-        db.execSQL("DROP TABLE IF EXISTS users");
-        db.execSQL("DROP TABLE IF EXISTS trips");
-        db.execSQL("DROP TABLE IF EXISTS activities");
-        db.execSQL("DROP TABLE IF EXISTS expenses");
-        db.execSQL("DROP TABLE IF EXISTS reminders");
-        onCreate(db);
+        // Keep existing data; only add what is new
+        if (oldV < 2) {
+            createSessionsTable(db);
+        }
     }
 
     // ================= USERS =================
@@ -101,6 +105,7 @@ public class DBHelper extends SQLiteOpenHelper {
         db.delete("activities", "trip_id=?", arg);
         db.delete("expenses", "trip_id=?", arg);
         db.delete("reminders", "trip_id=?", arg);
+        db.delete("sessions", "trip_id=?", arg);
         db.delete("trips", "id=?", arg);
     }
 
@@ -125,6 +130,13 @@ public class DBHelper extends SQLiteOpenHelper {
         cv.put("done", done ? 1 : 0);
         getWritableDatabase().update("activities", cv, "id=?",
                 new String[]{String.valueOf(id)});
+    }
+
+    // Marks an itinerary activity done when its name matches (ignores case)
+    public void markActivityDoneByTitle(long tripId, String title) {
+        getWritableDatabase().execSQL(
+                "UPDATE activities SET done=1 WHERE trip_id=? AND LOWER(title)=LOWER(?)",
+                new Object[]{tripId, title});
     }
 
     public void deleteActivity(long id) {
@@ -159,6 +171,28 @@ public class DBHelper extends SQLiteOpenHelper {
 
     public void deleteExpense(long id) {
         getWritableDatabase().delete("expenses", "id=?",
+                new String[]{String.valueOf(id)});
+    }
+
+    // ================= TIMED SESSIONS =================
+    public long addSession(long tripId, String activity, long seconds) {
+        ContentValues cv = new ContentValues();
+        cv.put("trip_id", tripId);
+        cv.put("activity", activity);
+        cv.put("seconds", seconds);
+        cv.put("logged_at", new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",
+                java.util.Locale.getDefault()).format(new java.util.Date()));
+        return getWritableDatabase().insert("sessions", null, cv);
+    }
+
+    public Cursor getSessions(long tripId) {
+        return getReadableDatabase().rawQuery(
+                "SELECT * FROM sessions WHERE trip_id=? ORDER BY id DESC",
+                new String[]{String.valueOf(tripId)});
+    }
+
+    public void deleteSession(long id) {
+        getWritableDatabase().delete("sessions", "id=?",
                 new String[]{String.valueOf(id)});
     }
 

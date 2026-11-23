@@ -91,8 +91,18 @@ public class TripsActivity extends AppCompatActivity {
             startActivity(i);
         });
 
-        lvTrips.setOnItemClickListener((parent, view, position, id) ->
-                showOptions(trips.get(position).id));
+        lvTrips.setOnItemClickListener((parent, view, position, id) -> {
+            Intent i = new Intent(this, TripDetailActivity.class);
+            i.putExtra("trip_id", trips.get(position).id);
+            i.putExtra("username", username);
+            startActivity(i);
+        });
+
+// Long press keeps Edit / Delete
+        lvTrips.setOnItemLongClickListener((parent, view, position, id) -> {
+            showOptions(trips.get(position).id);
+            return true;
+        });
     }
 
     @Override
